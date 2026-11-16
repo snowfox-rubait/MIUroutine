@@ -1,0 +1,91 @@
+{
+  "content_hash": "c97f54754e8ff3868b914ebf15611a3de051de74f11ded32a0a206ffddc18122",
+  "fetch_failures": 0,
+  "last_checked": "2026-11-16T18:44:52Z",
+  "last_error_hash": "",
+  "sessions": [
+    {
+      "code": "GED1102",
+      "day": "Sunday",
+      "end": 600,
+      "room": "C108",
+      "start": 540,
+      "teacher": "Bushra Tasnim",
+      "title": "Fundamentals of English"
+    },
+    {
+      "code": "MTH1105",
+      "day": "Sunday",
+      "end": 780,
+      "room": "C126",
+      "start": 660,
+      "teacher": "Mohammad Rafiqul Islam",
+      "title": "Differential & Integral Calculus"
+    },
+    {
+      "code": "PHY1112",
+      "day": "Sunday",
+      "end": 960,
+      "room": "C108",
+      "start": 840,
+      "teacher": "Prof. Dr. Ramit Azad",
+      "title": "Physics"
+    },
+    {
+      "code": "PHY1114",
+      "day": "Monday",
+      "end": 660,
+      "room": "C112 (PHY LAB)",
+      "start": 540,
+      "teacher": "Prof. Dr. Ramit Azad",
+      "title": "Physics Sessional"
+    },
+    {
+      "code": "MTH1105",
+      "day": "Monday",
+      "end": 720,
+      "room": "C105",
+      "start": 660,
+      "teacher": "Mohammad Rafiqul Islam",
+      "title": "Differential & Integral Calculus"
+    },
+    {
+      "code": "CSE1124",
+      "day": "Monday",
+      "end": 960,
+      "room": "C207",
+      "start": 840,
+      "teacher": "Jannatul Ferdaous",
+      "title": "Basic Programming Lab (Python)"
+    },
+    {
+      "code": "CSE1123",
+      "day": "Tuesday",
+      "end": 600,
+      "room": "C209",
+      "start": 540,
+      "teacher": "Jannatul Ferdaous",
+      "title": "Introduction to Computer Science"
+    },
+    {
+      "code": "GED1102",
+      "day": "Tuesday",
+      "end": 720,
+      "room": "C102 (New B)",
+      "start": 600,
+      "teacher": "Bushra Tasnim",
+      "title": "Fundamentals of English"
+    },
+    {
+      "code": "CSE1123",
+      "day": "Tuesday",
+      "end": 780,
+      "room": "C106 (Circuit Lab)",
+      "start": 720,
+      "teacher": "Jannatul Ferdaous",
+      "title": "Introduction to Computer Science"
+    }
+  ],
+  "sheet_updated_on": "10-11-2026",
+  "warnings": []
+}
