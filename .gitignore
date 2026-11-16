@@ -43,3 +43,10 @@ env/
 # Temporary files & downloaded spreadsheets
 *.tmp
 *.xlsx
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

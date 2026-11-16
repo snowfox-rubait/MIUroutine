@@ -1,8 +1,38 @@
-# MIU Routine Monitor & Telegram Notifier
+# MIU Routine Monitor & Interactive Telegram Assistant
 
-Automated class routine monitor and Telegram notification bot for **Manarat International University (MIU)**.
+Automated class routine monitor, change detector, and interactive Telegram bot for **Manarat International University (MIU)** (CSE Batch 71).
 
-Monitors the university's official Google Sheets class routine, extracts scheduled sessions for a specific batch (e.g. CSE Batch 71), detects schedule changes (room moves, rescheduled time slots, added/canceled classes), and broadcasts clean, formatted updates directly to a Telegram group or channel.
+Monitors the official university Google Sheets timetable, extracts scheduled sessions, detects changes (rescheduled times, room shifts, cancellations), broadcasts announcements to Telegram groups, sends daily health logs to the administrator, and provides interactive, non-cluttering routine lookups.
+
+---
+
+## Architecture: Hybrid Edge Model
+
+```
+┌────────────────────────────────┐         ┌────────────────────────────────┐
+│  Google Sheets University Grid │         │  Telegram Group & Private DMs  │
+└───────────────┬────────────────┘         └───────────────▲────────────────┘
+                │ (every 3h cron)                          │
+                ▼                                          │ (broadcast updates)
+┌────────────────────────────────┐                         │
+│ GitHub Actions (Python Runner) ├─────────────────────────┤
+│  • openpyxl .xlsx parsing      │                         │ (24h admin status)
+│  • Content SHA-256 diffing     │                         │
+│  • Commits state/batch71.json  │                         ▼
+└───────────────┬────────────────┘              ┌──────────────────────┐
+                │                               │ Admin Personal Chat  │
+                ▼ (raw JSON)                    └──────────────────────┘
+┌────────────────────────────────┐                         ▲
+│ Cloudflare Worker (Edge API)   ├─────────────────────────┘
+│  • Sub-50ms Telegram Webhook   │  (Private popup alerts & DMs)
+│  • Inline button modals        │
+│  • Zero-clutter group commands │
+└────────────────────────────────┘
+```
+
+### Why Both GitHub Actions & Cloudflare Worker?
+- **GitHub Actions (Scheduled Backend):** Handles heavy `.xlsx` binary spreadsheet parsing, merged cells, teacher abbreviation tables, and diff computation via Python without needing a 24/7 dedicated server. State is committed directly to git for free, transparent version history.
+- **Cloudflare Worker (Interactive Frontend):** Handles instant, sub-50ms Telegram Webhook responses 24/7 for free. When students in a group tap `[Today's Classes]`, the Worker reads `state/batch71.json` and opens an **ephemeral modal popup visible only to that user**, keeping the group 100% spam-free.
 
 ---
 
@@ -10,12 +40,11 @@ Monitors the university's official Google Sheets class routine, extracts schedul
 
 - **Dynamic Spreadsheet Extraction:** Scans table headers, room assignments, day partitions, and time slots dynamically without relying on hardcoded cell coordinates.
 - **Merged Cell & Legend Resolution:** Handles multi-period lab blocks spanning merged cells and resolves teacher abbreviations (e.g., `BT` → `Bushra Tasnim`) from the sheet's legend.
-- **Smart Content-Based Diffing:** Uses a SHA-256 hash of actual cell contents and spans (ignoring Google Sheets' fluctuating XLSX export timestamps) to detect true changes.
-- **Intelligent Change Detection:** Pairs removed and added sessions of the same course as "Changed" (e.g. class moved to another day or room).
-- **Telegram Notifications:** Sends clean, HTML-formatted schedule summaries and diffs. Automatically splits long messages across line boundaries to respect Telegram's message limits.
+- **Smart Content-Based Diffing:** Uses a SHA-256 hash of actual cell contents and spans (ignoring Google Sheets' fluctuating XLSX export timestamps) to detect true timetable changes.
+- **Private / Ephemeral Group Lookups:** Interactive buttons trigger `show_alert: true` popups on the user's screen — zero clutter in Telegram groups!
+- **Daily 24-Hour Admin Health Report:** Sends an automated 24-hour summary directly to your private chat (`admin_chat_id`), reporting total checks, successful parses, updates broadcasted, errors, and system health.
 - **Weekly Hour Validation:** Compares actual routine class hours with expected weekly hours configured in `courses.json` and flags discrepancies.
-- **Heartbeat & Failure Alerts:** Sends periodic "alive" heartbeats if no changes occur over a set duration, and alerts administrators if Google Sheets fails to fetch repeatedly.
-- **Zero-Maintenance Automation:** Ready to run autonomously on GitHub Actions cron with automatic state persistence.
+- **Multi-Chat Broadcasts:** Pushes routine update announcements to both individual chats and university group chats simultaneously.
 
 ---
 
@@ -25,15 +54,25 @@ Monitors the university's official Google Sheets class routine, extracts schedul
 MIUroutine/
 ├── .github/workflows/
 │   └── check_routine.yml    # GitHub Actions workflow for scheduled checks
-├── config.json              # Sheet ID, target tab, batch, and monitoring intervals
+├── config.json              # Sheet ID, target tab, batch, and admin chat ID
 ├── courses.json             # Course catalog, credits, and expected weekly hours
 ├── diff.py                  # Diffs session lists and formats HTML messages
 ├── grid.py                  # Parses .xlsx data into memory and hashes content
-├── main.py                  # CLI entrypoint and orchestrator
+├── main.py                  # CLI runner, diff engine, and 24h health reporter
 ├── requirements.txt         # Python dependencies (openpyxl)
 ├── routine.py               # Dynamic schedule and teacher legend parser
 ├── state.py                 # Atomic state management and history logger
-└── telegram.py              # Lightweight stdlib Telegram Bot API client
+├── telegram.py              # Lightweight stdlib Telegram Bot API client
+├── tests/                   # Unit test suite
+├── worker/
+│   ├── worker.js            # Cloudflare Worker Telegram webhook handler
+│   └── wrangler.toml        # Wrangler configuration
+└── terraform/
+    ├── main.tf              # Cloudflare Worker deployment
+    ├── providers.tf         # Cloudflare provider configuration
+    ├── variables.tf         # Terraform input variables
+    ├── outputs.tf           # Deployed worker & webhook URLs
+    └── terraform.tfvars.example
 ```
 
 ---
@@ -59,23 +98,13 @@ View the parsed schedule directly in the terminal without modifying state or sen
 python main.py --print-schedule
 ```
 
-### 3. Dry-Run Check
+### 3. Dry-Run & Daily Health Report
 
-Simulate an update check and view what would be sent to Telegram:
+Simulate an update check or preview the 24-hour administrator report:
 
 ```bash
 python main.py --dry-run
-```
-
-### 4. Run Locally with Telegram
-
-Set your Telegram credentials and run:
-
-```bash
-export TELEGRAM_BOT_TOKEN="your_bot_token"
-export TELEGRAM_CHAT_ID="your_chat_id"   # Comma-separated for multiple chats
-
-python main.py
+python main.py --dry-run --daily-report
 ```
 
 ---
@@ -86,6 +115,7 @@ python main.py
 | --- | --- |
 | `-p`, `--print-schedule` | Print current schedule to stdout and exit |
 | `-n`, `--dry-run` | Run without saving state or sending Telegram messages |
+| `--daily-report` | Force send the 24-hour daily health report to admin |
 | `--force` | Force a Telegram notification even if routine is unchanged |
 | `-c`, `--config <path>` | Custom path to `config.json` |
 | `--courses <path>` | Custom path to `courses.json` |
@@ -93,24 +123,57 @@ python main.py
 
 ---
 
-## GitHub Actions Setup
+## GitHub Actions Setup (Scheduled Checker)
 
-This repository includes a scheduled GitHub Action in `.github/workflows/check_routine.yml` that checks the sheet every 3 hours.
+The scheduled GitHub Action in `.github/workflows/check_routine.yml` checks the spreadsheet every 3 hours.
 
-### 1. Add Repository Secrets
+### Repository Secrets
 
 Navigate to **Settings > Secrets and variables > Actions** in your GitHub repository and add:
 
-- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token from [@BotFather](https://t.me/BotFather).
-- `TELEGRAM_CHAT_ID`: The target Telegram chat/group/channel ID (or comma-separated list of IDs).
+- `TELEGRAM_BOT_TOKEN`: Your bot token from [@BotFather](https://t.me/BotFather).
+- `TELEGRAM_CHAT_ID`: Comma-separated list of target chat IDs (e.g. `8761332020,-1001234567890` for private chat and group).
+- `TELEGRAM_ADMIN_CHAT_ID`: (Optional) Your personal chat ID for the 24h health report. Defaults to `admin_chat_id` in `config.json`.
 
-### 2. Configure Workflow Permissions
+Ensure **Workflow permissions** under **Settings > Actions > General** are set to **Read and write permissions** so the runner can commit state updates.
 
-Ensure the GitHub Action can persist state back to the repository:
+---
 
-1. Go to **Settings > Actions > General**.
-2. Under **Workflow permissions**, select **Read and write permissions**.
-3. Save changes.
+## Interactive Telegram Bot (Cloudflare Worker)
+
+The Cloudflare Worker in `worker/worker.js` provides instant 24/7 interactive features:
+- **In Groups:** Users tap `[📅 Today's Classes]` or `[📆 Tomorrow]` and an ephemeral modal dialog pops up on their screen with their schedule. No spam in the group!
+- **In DMs:** Users can type `/start`, `/today`, `/tomorrow`, or `/week` and receive instant timetable cards.
+
+### Deploying with Terraform
+
+1. Navigate to the `terraform/` directory:
+   ```bash
+   cd terraform
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+2. Fill in your Cloudflare credentials and Telegram Bot Token in `terraform.tfvars`:
+   ```hcl
+   cloudflare_email      = "your_email@example.com"
+   cloudflare_api_key    = "your_global_api_key"
+   cloudflare_account_id = "your_account_id"
+   cloudflare_zone_id    = "your_zone_id"        # Leave empty if using workers.dev
+   domain                = "snowfox.live"
+   subdomain             = "routine"
+   telegram_bot_token    = "9131553264:AAEAldBC..."
+   ```
+3. Initialize and apply:
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+4. Register the webhook with Telegram by visiting:
+   ```
+   https://routine.snowfox.live/setup-webhook
+   ```
+
+*(Alternatively, deploy with `cd worker && npx wrangler deploy`).*
 
 ---
 
@@ -125,29 +188,9 @@ Ensure the GitHub Action can persist state back to the repository:
   "batch": "71",
   "state_file": "state/batch71.json",
   "history_file": "state/history.log",
+  "admin_chat_id": "8761332020",
   "fetch_failures_before_alert": 3,
   "heartbeat_days": 7
-}
-```
-
-- `sheet_id`: Google Spreadsheet ID (from the sheet URL).
-- `sheet_tab`: Target sheet tab name.
-- `batch`: Target batch identifier (e.g. `71`).
-- `fetch_failures_before_alert`: Consecutive download errors before sending an alert.
-- `heartbeat_days`: Days between confirmation messages when the routine remains unchanged.
-
-### `courses.json`
-
-Maps 4-digit course numbers to course titles and expected weekly hours:
-
-```json
-{
-  "1102": {"title": "Fundamentals of English", "credits": 3, "weekly_hours": 3},
-  "1105": {"title": "Differential & Integral Calculus", "credits": 3, "weekly_hours": 3},
-  "1112": {"title": "Physics", "credits": 2, "weekly_hours": 2},
-  "1114": {"title": "Physics Sessional", "credits": 1, "weekly_hours": 2},
-  "1123": {"title": "Introduction to Computer Science", "credits": 2, "weekly_hours": 2},
-  "1124": {"title": "Basic Programming Lab (Python)", "credits": 1, "weekly_hours": 2}
 }
 ```
 

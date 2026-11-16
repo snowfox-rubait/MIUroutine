@@ -1,7 +1,13 @@
 import unittest
-from MIUroutine.diff import diff_sessions, has_changes, render_changes, render_schedule, render_warnings
-from MIUroutine.grid import Grid, content_hash
-from MIUroutine.routine import _batch_matches, _minutes, parse_routine
+
+try:
+    from MIUroutine.diff import diff_sessions, has_changes, render_changes, render_schedule, render_warnings
+    from MIUroutine.grid import Grid, content_hash
+    from MIUroutine.routine import _batch_matches, _minutes, parse_routine
+except ImportError:
+    from diff import diff_sessions, has_changes, render_changes, render_schedule, render_warnings
+    from grid import Grid, content_hash
+    from routine import _batch_matches, _minutes, parse_routine
 
 
 class TestRoutine(unittest.TestCase):

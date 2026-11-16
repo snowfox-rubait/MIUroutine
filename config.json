@@ -4,6 +4,7 @@
   "batch": "71",
   "state_file": "state/batch71.json",
   "history_file": "state/history.log",
+  "admin_chat_id": "8761332020",
   "fetch_failures_before_alert": 3,
   "heartbeat_days": 7
 }

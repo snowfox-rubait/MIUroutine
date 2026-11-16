@@ -54,6 +54,7 @@ def run(
     dry_run: bool = False,
     force_notify: bool = False,
     print_schedule_only: bool = False,
+    force_daily_report: bool = False,
 ) -> int:
     # 1. Load config
     if not config_path.is_file():
@@ -80,7 +81,7 @@ def run(
         with open(courses_path, "r", encoding="utf-8") as f:
             courses = json.load(f)
 
-    # 3. Load telegram settings (optional during dry-run / schedule print)
+    # 3. Load telegram settings
     tg_token, tg_chats, tg_base = None, [], "https://api.telegram.org"
     try:
         tg_token, tg_chats, tg_base = from_env()
@@ -88,7 +89,25 @@ def run(
         if not dry_run and not print_schedule_only:
             logger.warning(f"Telegram not configured ({e}). Notifications will be logged only.")
 
+    admin_chat_id = (
+        os.environ.get("TELEGRAM_ADMIN_CHAT_ID", "").strip()
+        or str(config.get("admin_chat_id", "")).strip()
+        or (tg_chats[0] if tg_chats else "")
+    )
+
     state = load_state(str(state_file))
+
+    # Initialize 24-hour daily report stats
+    stats = state.setdefault("stats_24h", {
+        "checks": 0,
+        "parses": 0,
+        "changes": 0,
+        "errors": 0,
+        "window_start": now_iso(),
+    })
+    stats["checks"] = stats.get("checks", 0) + 1
+    if not stats.get("window_start"):
+        stats["window_start"] = now_iso()
 
     # 4. Fetch xlsx data
     xlsx_data = None
@@ -103,6 +122,7 @@ def run(
             state["fetch_failures"] = 0
         except Exception as e:
             state["fetch_failures"] = state.get("fetch_failures", 0) + 1
+            stats["errors"] = stats.get("errors", 0) + 1
             err_msg = f"Failed to fetch spreadsheet: {e}"
             logger.error(err_msg)
             append_history(str(history_file), f"FETCH_FAIL ({state['fetch_failures']}): {e}")
@@ -128,6 +148,7 @@ def run(
     try:
         grids = load_grids(xlsx_data)
     except Exception as e:
+        stats["errors"] = stats.get("errors", 0) + 1
         logger.error(f"Failed to parse xlsx file: {e}")
         append_history(str(history_file), f"PARSE_ERROR: {e}")
         return 1
@@ -142,13 +163,16 @@ def run(
         target_grid = grids[0]
 
     if not target_grid:
+        stats["errors"] = stats.get("errors", 0) + 1
         logger.error(f"No valid sheet grid found (expected tab: {sheet_tab})")
         return 1
 
     # 6. Extract batch sessions
     try:
         parsed = parse_routine(target_grid, batch, courses)
+        stats["parses"] = stats.get("parses", 0) + 1
     except ParseError as pe:
+        stats["errors"] = stats.get("errors", 0) + 1
         logger.error(f"Routine parse error: {pe}")
         append_history(str(history_file), f"ROUTINE_PARSE_ERROR: {pe}")
         return 1
@@ -191,6 +215,7 @@ def run(
         log_entry = f"INITIAL_RUN: {len(parsed.sessions)} sessions loaded"
     elif curr_hash != old_hash:
         if changes_detected:
+            stats["changes"] = stats.get("changes", 0) + 1
             logger.info(f"Changes detected for batch {batch}!")
             body = [f"🔔 <b>MIU Routine Update (Batch {batch})</b>"]
             if parsed.updated_on:
@@ -238,7 +263,44 @@ def run(
                 logger.error(f"Failed to send Telegram notification: {te}")
                 append_history(str(history_file), f"TELEGRAM_ERROR: {te}")
 
-    # 8. Update and save state
+    # 8. Check 24-hour Daily Health Report to Admin
+    window_start = stats.get("window_start")
+    if not window_start:
+        stats["window_start"] = now_iso()
+        window_start = stats["window_start"]
+
+    if admin_chat_id and (force_daily_report or days_since(window_start) >= 1.0):
+        logger.info(f"Preparing 24h Daily Health Report for admin ({admin_chat_id})...")
+        err_count = stats.get("errors", 0)
+        status_icon = "Healthy & Operational 🟢" if err_count == 0 else f"Errors Encountered ({err_count}) ⚠️"
+        report_msg = (
+            f"📊 <b>MIU Routine Monitor — Daily Health Report</b>\n\n"
+            f"• <b>Checks executed (last 24h):</b> {stats.get('checks', 0)}\n"
+            f"• <b>Successful routine parses:</b> {stats.get('parses', 0)}\n"
+            f"• <b>Routine changes broadcasted:</b> {stats.get('changes', 0)}\n"
+            f"• <b>Errors encountered:</b> {err_count}\n"
+            f"• <b>Spreadsheet updated on:</b> <b>{parsed.updated_on or 'N/A'}</b>\n"
+            f"• <b>Status:</b> {status_icon}"
+        )
+        if dry_run:
+            print("\n[DRY RUN] Would send 24h Daily Health Report to admin:")
+            print(report_msg)
+        elif tg_token:
+            try:
+                send_telegram(report_msg, tg_token, [admin_chat_id], tg_base)
+                logger.info("Daily health report sent to admin.")
+                append_history(str(history_file), "DAILY_HEALTH_REPORT_SENT")
+            except Exception as te:
+                logger.error(f"Failed to send daily health report to admin: {te}")
+
+        # Reset daily window
+        stats["checks"] = 0
+        stats["parses"] = 0
+        stats["changes"] = 0
+        stats["errors"] = 0
+        stats["window_start"] = now_iso()
+
+    # 9. Update and save state
     if not dry_run:
         state["content_hash"] = curr_hash
         state["sessions"] = parsed.sessions
@@ -293,6 +355,11 @@ def main():
         action="store_true",
         help="Print the current schedule to stdout and exit",
     )
+    parser.add_argument(
+        "--daily-report",
+        action="store_true",
+        help="Force send the 24-hour daily health report to admin",
+    )
 
     args = parser.parse_args()
 
@@ -310,6 +377,7 @@ def main():
         dry_run=args.dry_run,
         force_notify=args.force,
         print_schedule_only=args.print_schedule,
+        force_daily_report=args.daily_report,
     )
 
 

@@ -10,6 +10,14 @@ DEFAULT = {
     "last_error_hash": "",
     "fetch_failures": 0,
     "last_checked": "",
+    "last_heartbeat": "",
+    "stats_24h": {
+        "checks": 0,
+        "parses": 0,
+        "changes": 0,
+        "errors": 0,
+        "window_start": "",
+    },
 }
 
 
