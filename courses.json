@@ -1,0 +1,9 @@
+{
+  "_comment": "Batch 71, 1st semester. Keyed by the 4-digit number, because the routine writes PHY1112 where the roadmap says 9999GED1112. weekly_hours is the expected total class hours per week (theory = credits, labs = 2h per credit); a mismatch only produces a warning.",
+  "1102": {"roadmap_code": "9999GED1102", "title": "Fundamentals of English",          "credits": 3, "weekly_hours": 3},
+  "1105": {"roadmap_code": "0619MTH1105", "title": "Differential & Integral Calculus", "credits": 3, "weekly_hours": 3},
+  "1112": {"roadmap_code": "9999GED1112", "title": "Physics",                          "credits": 2, "weekly_hours": 2},
+  "1114": {"roadmap_code": "9999GED1114", "title": "Physics Sessional",                "credits": 1, "weekly_hours": 2},
+  "1123": {"roadmap_code": "0619CSE1123", "title": "Introduction to Computer Science", "credits": 2, "weekly_hours": 2},
+  "1124": {"roadmap_code": "0619CSE1124", "title": "Basic Programming Lab (Python)",   "credits": 1, "weekly_hours": 2}
+}

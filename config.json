@@ -1,0 +1,9 @@
+{
+  "sheet_id": "1Rhg08lM7rQF5QfDeILgF91BlTMhFc1eJpAdes9GPvX4",
+  "sheet_tab": "Fall 26",
+  "batch": "71",
+  "state_file": "state/batch71.json",
+  "history_file": "state/history.log",
+  "fetch_failures_before_alert": 3,
+  "heartbeat_days": 7
+}
