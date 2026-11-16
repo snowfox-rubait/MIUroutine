@@ -1,5 +1,9 @@
 import sys
 
-from .main import main
+try:
+    from .main import main
+except ImportError:
+    from main import main
 
-sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())

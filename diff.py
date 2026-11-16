@@ -1,7 +1,10 @@
 """Compare two session lists and render Telegram-ready (HTML) text."""
 from html import escape
 
-from .routine import DAY_ORDER, _day_key
+try:
+    from .routine import DAY_ORDER, _day_key
+except ImportError:
+    from routine import DAY_ORDER, _day_key
 
 
 def _key(s):
