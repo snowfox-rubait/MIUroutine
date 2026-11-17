@@ -156,6 +156,7 @@ export default {
           { command: "tomorrow", description: "View tomorrow's classes" },
           { command: "week", description: "View full weekly routine" },
           { command: "routine", description: "Open interactive routine menu" },
+          { command: "id", description: "Get current Chat and User ID" },
           { command: "menu", description: "Open interactive routine menu" },
           { command: "help", description: "Help and information" },
         ],
@@ -290,6 +291,24 @@ export default {
             reply_markup: keyboard,
           });
 
+          return new Response("OK");
+        }
+
+        // /id or /chatid command
+        if (text.startsWith("/id") || text.startsWith("/chatid")) {
+          const userId = msg.from ? msg.from.id : "N/A";
+          const chatTitle = msg.chat.title ? `\n• <b>Title:</b> ${msg.chat.title}` : "";
+          const replyText =
+            `🆔 <b>Telegram ID Info:</b>\n\n` +
+            `• <b>Chat ID:</b> <code>${chatId}</code>${chatTitle}\n` +
+            `• <b>Chat Type:</b> <code>${msg.chat.type}</code>\n` +
+            `• <b>Your User ID:</b> <code>${userId}</code>`;
+
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: replyText,
+            parse_mode: "HTML",
+          });
           return new Response("OK");
         }
 
