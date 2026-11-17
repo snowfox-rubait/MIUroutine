@@ -3,7 +3,7 @@
  * Cloudflare Worker providing interactive bot capabilities:
  * - Inline buttons with ephemeral "show_alert: true" popups (zero group clutter)
  * - /today, /tomorrow, /week, /routine commands
- * - Direct PM responses
+ * - Direct PM responses with full HTML formatting
  */
 
 const BANGLADESH_OFFSET_HOURS = 6;
@@ -42,7 +42,7 @@ async function getSchedule(env) {
 
   try {
     const res = await fetch(url, {
-      cf: { cacheTtl: 180, cacheEverything: true },
+      cf: { cacheTtl: 120, cacheEverything: true },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -52,15 +52,30 @@ async function getSchedule(env) {
   }
 }
 
-function formatDaySessions(sessions, dayName) {
+// Concise format for Telegram Alert Modals (strictly under 200 chars)
+function formatConciseDay(sessions, dayName) {
   const dayClasses = (sessions || []).filter((s) => s.day === dayName);
   if (!dayClasses.length) {
     return `🎉 No classes scheduled for ${dayName}! Enjoy your day.`;
   }
 
-  let text = `📅 Classes for ${dayName}:\n\n`;
+  let text = `📅 ${dayName} (${dayClasses.length} class${dayClasses.length > 1 ? "es" : ""}):\n`;
   for (const s of dayClasses) {
-    text += `• ${fmtRange(s.start, s.end)}\n  ${s.title} (${s.code})\n  Room: ${s.room} · ${s.teacher}\n\n`;
+    text += `• ${fmtRange(s.start, s.end)}: ${s.code} (${s.room})\n`;
+  }
+  return text.trim();
+}
+
+// Full rich HTML format for chat messages & DMs
+function formatDaySessions(sessions, dayName) {
+  const dayClasses = (sessions || []).filter((s) => s.day === dayName);
+  if (!dayClasses.length) {
+    return `🎉 <b>No classes scheduled for ${dayName}!</b> Enjoy your day.`;
+  }
+
+  let text = `📅 <b>Classes for ${dayName}:</b>\n\n`;
+  for (const s of dayClasses) {
+    text += `• <b>${fmtRange(s.start, s.end)}</b>\n  ${s.title} (<code>${s.code}</code>)\n  📍 Room: <b>${s.room}</b> · 👨‍🏫 ${s.teacher}\n\n`;
   }
   return text.trim();
 }
@@ -71,18 +86,18 @@ function formatWeekSchedule(sessions, updatedOn) {
   }
 
   const daysOrder = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Saturday"];
-  let text = "📋 Weekly Routine (Batch 71)\n";
-  if (updatedOn) text += `Updated on: ${updatedOn}\n`;
-  text += "───────────────\n\n";
+  let text = `📋 <b>Weekly Routine (Batch 71)</b>\n`;
+  if (updatedOn) text += `<i>Sheet updated on: ${updatedOn}</i>\n`;
+  text += `───────────────────────\n\n`;
 
   let foundAny = false;
   for (const day of daysOrder) {
     const dayClasses = sessions.filter((s) => s.day === day);
     if (dayClasses.length) {
       foundAny = true;
-      text += `【 ${day} 】\n`;
+      text += `<b>【 ${day} 】</b>\n`;
       for (const s of dayClasses) {
-        text += `• ${fmtRange(s.start, s.end)}: ${s.code} (${s.room})\n`;
+        text += `• ${fmtRange(s.start, s.end)} · <b>${s.code}</b> · ${s.room}\n   <i>${s.title} (${s.teacher})</i>\n`;
       }
       text += "\n";
     }
@@ -98,9 +113,9 @@ function formatCoursesList(sessions) {
       map.set(s.code, { title: s.title, teacher: s.teacher });
     }
   }
-  let text = "📚 Courses & Faculty (Batch 71):\n\n";
+  let text = `📚 <b>Courses & Faculty (Batch 71):</b>\n\n`;
   for (const [code, info] of map.entries()) {
-    text += `• ${code}: ${info.title}\n  Faculty: ${info.teacher}\n\n`;
+    text += `• <b>${code}</b>: ${info.title}\n  Faculty: <i>${info.teacher}</i>\n\n`;
   }
   return text.trim();
 }
@@ -126,14 +141,27 @@ export default {
       });
     }
 
-    // Webhook setup helper: GET /setup-webhook?secret=...
+    // Webhook & Commands setup helper: GET /setup-webhook
     if (url.pathname === "/setup-webhook") {
       const webhookUrl = `${url.origin}/webhook`;
-      const res = await tgApi(env, "setWebhook", {
+      const webhookRes = await tgApi(env, "setWebhook", {
         url: webhookUrl,
         allowed_updates: ["message", "callback_query"],
       });
-      return new Response(JSON.stringify(res, null, 2), {
+
+      // Register bot commands list in Telegram
+      const commandsRes = await tgApi(env, "setMyCommands", {
+        commands: [
+          { command: "today", description: "View today's classes" },
+          { command: "tomorrow", description: "View tomorrow's classes" },
+          { command: "week", description: "View full weekly routine" },
+          { command: "routine", description: "Open interactive routine menu" },
+          { command: "menu", description: "Open interactive routine menu" },
+          { command: "help", description: "Help and information" },
+        ],
+      });
+
+      return new Response(JSON.stringify({ webhook: webhookRes, commands: commandsRes }, null, 2), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -155,28 +183,64 @@ export default {
       if (update.callback_query) {
         const cb = update.callback_query;
         const action = cb.data;
+        const chatId = cb.message?.chat?.id;
+        const userId = cb.from?.id;
         const isGroup = cb.message?.chat?.type === "group" || cb.message?.chat?.type === "supergroup";
 
-        let popupText = "";
+        let fullText = "";
+        let alertText = "";
+
         if (action === "today") {
-          popupText = formatDaySessions(sessions, getDayName(0));
+          fullText = formatDaySessions(sessions, getDayName(0));
+          alertText = formatConciseDay(sessions, getDayName(0));
         } else if (action === "tomorrow") {
-          popupText = formatDaySessions(sessions, getDayName(1));
+          fullText = formatDaySessions(sessions, getDayName(1));
+          alertText = formatConciseDay(sessions, getDayName(1));
         } else if (action === "week") {
-          popupText = formatWeekSchedule(sessions, updatedOn);
+          fullText = formatWeekSchedule(sessions, updatedOn);
+          alertText = "📋 Weekly schedule sent! Check your Private DM with @miuroutinebot for the full timetable.";
         } else if (action === "courses") {
-          popupText = formatCoursesList(sessions);
+          fullText = formatCoursesList(sessions);
+          alertText = "📚 Course catalog sent! Check your Private DM with @miuroutinebot for faculty details.";
         } else {
-          popupText = "Unknown action.";
+          fullText = "Unknown action.";
+          alertText = "Unknown action.";
         }
 
-        // In a group, answer with show_alert: true for an ephemeral popup modal
-        // visible only to that user!
-        await tgApi(env, "answerCallbackQuery", {
-          callback_query_id: cb.id,
-          text: popupText,
-          show_alert: true,
-        });
+        if (isGroup) {
+          // In a group, answer with show_alert: true for an ephemeral popup modal
+          // Telegram requires alert text to be strictly <= 200 characters!
+          const safeAlert = alertText.length > 195 ? alertText.slice(0, 192) + "..." : alertText;
+          await tgApi(env, "answerCallbackQuery", {
+            callback_query_id: cb.id,
+            text: safeAlert,
+            show_alert: true,
+          });
+
+          // For week and courses in group, also send detailed view to user's DM
+          if (action === "week" || action === "courses") {
+            try {
+              await tgApi(env, "sendMessage", {
+                chat_id: userId,
+                text: fullText,
+                parse_mode: "HTML",
+              });
+            } catch (e) {
+              console.log("Could not DM user:", e);
+            }
+          }
+        } else {
+          // In Private DM: stop loading spinner and send the full rich message!
+          await tgApi(env, "answerCallbackQuery", {
+            callback_query_id: cb.id,
+          });
+
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: fullText,
+            parse_mode: "HTML",
+          });
+        }
 
         return new Response("OK");
       }
@@ -208,15 +272,16 @@ export default {
                 { text: "📚 Course Catalog", callback_data: "courses" },
               ],
               [
-                { text: "💬 Open in Private DM", url: `https://t.me/${botUsername}?start=routine` },
+                { text: "💬 Open in Private DM", url: `https://t.me/${botUsername}?start=menu` },
               ],
             ],
           };
 
           const replyText =
-            `🎓 <b>MIU Routine Assistant (Batch 71)</b>\n\n` +
-            `Tap an option below to view class schedules.\n` +
-            `<i>(In groups, buttons display private popups visible only to you)</i>`;
+            `🎓 <b>MIU Routine Assistant (CSE Batch 71)</b>\n\n` +
+            `Choose an option below to view class schedules.\n` +
+            `<i>• In groups: buttons display private popups visible only to you.</i>\n` +
+            `<i>• In private DM: sends the full detailed timetable.</i>`;
 
           await tgApi(env, "sendMessage", {
             chat_id: chatId,
@@ -231,64 +296,33 @@ export default {
         // /today command
         if (text.startsWith("/today")) {
           const todaySchedule = formatDaySessions(sessions, getDayName(0));
-          if (isGroup) {
-            // Give them button so they can tap to view without group spam
-            const keyboard = {
-              inline_keyboard: [[{ text: "👁️ View Today's Classes (Private)", callback_data: "today" }]],
-            };
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: `📅 Click below to view today's schedule privately:`,
-              reply_markup: keyboard,
-            });
-          } else {
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: todaySchedule,
-            });
-          }
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: todaySchedule,
+            parse_mode: "HTML",
+          });
           return new Response("OK");
         }
 
         // /tomorrow command
         if (text.startsWith("/tomorrow")) {
           const tomorrowSchedule = formatDaySessions(sessions, getDayName(1));
-          if (isGroup) {
-            const keyboard = {
-              inline_keyboard: [[{ text: "👁️ View Tomorrow's Classes (Private)", callback_data: "tomorrow" }]],
-            };
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: `📆 Click below to view tomorrow's schedule privately:`,
-              reply_markup: keyboard,
-            });
-          } else {
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: tomorrowSchedule,
-            });
-          }
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: tomorrowSchedule,
+            parse_mode: "HTML",
+          });
           return new Response("OK");
         }
 
         // /week command
         if (text.startsWith("/week")) {
           const weekSchedule = formatWeekSchedule(sessions, updatedOn);
-          if (isGroup) {
-            const keyboard = {
-              inline_keyboard: [[{ text: "👁️ View Full Week (Private)", callback_data: "week" }]],
-            };
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: `📋 Click below to view the full weekly schedule privately:`,
-              reply_markup: keyboard,
-            });
-          } else {
-            await tgApi(env, "sendMessage", {
-              chat_id: chatId,
-              text: weekSchedule,
-            });
-          }
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: weekSchedule,
+            parse_mode: "HTML",
+          });
           return new Response("OK");
         }
       }
