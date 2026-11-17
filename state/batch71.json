@@ -1,8 +1,9 @@
 {
   "content_hash": "c97f54754e8ff3868b914ebf15611a3de051de74f11ded32a0a206ffddc18122",
   "fetch_failures": 0,
-  "last_checked": "2026-11-16T18:44:52Z",
+  "last_checked": "2026-11-17T03:23:36Z",
   "last_error_hash": "",
+  "last_heartbeat": "",
   "sessions": [
     {
       "code": "GED1102",
@@ -87,5 +88,12 @@
     }
   ],
   "sheet_updated_on": "10-11-2026",
+  "stats_24h": {
+    "changes": 0,
+    "checks": 1,
+    "errors": 0,
+    "parses": 1,
+    "window_start": "2026-11-17T03:23:35Z"
+  },
   "warnings": []
 }
