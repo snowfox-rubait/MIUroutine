@@ -255,12 +255,32 @@ export default {
 
         const botUsername = env.TELEGRAM_BOT_USERNAME || "miuroutinebot";
 
+        // Help command
+        if (text.startsWith("/help")) {
+          const helpText =
+            `📖 <b>MIU Routine Bot — Help & Commands</b>\n\n` +
+            `Here are all available commands you can use:\n\n` +
+            `• <b>/today</b> — View today's class schedule (times, rooms, faculty)\n` +
+            `• <b>/tomorrow</b> — View tomorrow's schedule to prepare in advance\n` +
+            `• <b>/week</b> — View the full weekly routine for Batch 71\n` +
+            `• <b>/routine</b> or <b>/menu</b> — Open the interactive menu with one-tap buttons\n` +
+            `• <b>/id</b> — Check the current Chat ID and your Telegram User ID\n` +
+            `• <b>/help</b> — Show this command reference list\n\n` +
+            `💡 <i>Tip: In groups, tapping routine buttons displays private popups visible only to you!</i>`;
+
+          await tgApi(env, "sendMessage", {
+            chat_id: chatId,
+            text: helpText,
+            parse_mode: "HTML",
+          });
+          return new Response("OK");
+        }
+
         // Menu / Start / Routine command
         if (
           text.startsWith("/start") ||
           text.startsWith("/routine") ||
-          text.startsWith("/menu") ||
-          text.startsWith("/help")
+          text.startsWith("/menu")
         ) {
           const keyboard = {
             inline_keyboard: [
