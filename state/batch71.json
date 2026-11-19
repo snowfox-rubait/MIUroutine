@@ -1,7 +1,7 @@
 {
   "content_hash": "c97f54754e8ff3868b914ebf15611a3de051de74f11ded32a0a206ffddc18122",
   "fetch_failures": 0,
-  "last_checked": "2026-11-18T19:55:42Z",
+  "last_checked": "2026-11-19T02:14:32Z",
   "last_error_hash": "",
   "last_heartbeat": "",
   "sessions": [
@@ -90,9 +90,9 @@
   "sheet_updated_on": "10-11-2026",
   "stats_24h": {
     "changes": 0,
-    "checks": 1,
+    "checks": 2,
     "errors": 0,
-    "parses": 1,
+    "parses": 2,
     "window_start": "2026-11-18T11:04:21Z"
   },
   "warnings": []
