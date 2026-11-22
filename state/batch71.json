@@ -1,7 +1,7 @@
 {
   "content_hash": "c97f54754e8ff3868b914ebf15611a3de051de74f11ded32a0a206ffddc18122",
   "fetch_failures": 0,
-  "last_checked": "2026-11-21T18:39:48Z",
+  "last_checked": "2026-11-22T00:55:38Z",
   "last_error_hash": "",
   "last_heartbeat": "",
   "sessions": [
@@ -90,10 +90,10 @@
   "sheet_updated_on": "10-11-2026",
   "stats_24h": {
     "changes": 0,
-    "checks": 3,
+    "checks": 0,
     "errors": 0,
-    "parses": 3,
-    "window_start": "2026-11-20T19:35:38Z"
+    "parses": 0,
+    "window_start": "2026-11-22T00:55:38Z"
   },
   "warnings": []
 }
